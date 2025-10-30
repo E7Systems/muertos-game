@@ -49,7 +49,7 @@ class LobbyScene extends Phaser.Scene {
     preload() {
         // Load all assets
         this.load.image('lobby', 'assets/lobby.jpg');
-        this.load.image('play-screen', 'assets/Play.jpg');
+        this.load.image('play-screen', 'assets/play.jpg');
         this.load.image('winner-screen', 'assets/winner.jpg');
         this.load.image('tryagain-screen', 'assets/try_again.jpg');
 
