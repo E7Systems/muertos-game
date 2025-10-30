@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1080, height=1920, initial-scale=1.0, user-scalable=no">
+    <title>Muertos - Juego de Memoria</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            font-family: 'Arial', sans-serif;
+            overflow-x: hidden;
+        }
+
+        #game-container {
+            width: 1080px;
+            height: 1920px;
+            margin: 0 auto;
+            position: relative;
+            background-color: #1a0a2e;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* Fullscreen button for kiosk mode */
+        #fullscreen-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.8);
+            border: 2px solid #ff6b35;
+            border-radius: 10px;
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+            font-weight: bold;
+            color: #1a0a2e;
+        }
+
+        #fullscreen-btn:hover {
+            background: rgba(255, 255, 255, 1);
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <button id="fullscreen-btn" onclick="goFullscreen()">Pantalla Completa</button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+    <script src="game.js"></script>
+
+    <script>
+        // Fullscreen functionality for kiosk mode
+        function goFullscreen() {
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen();
+            } else if (elem.webkitRequestFullscreen) {
+                elem.webkitRequestFullscreen();
+            } else if (elem.msRequestFullscreen) {
+                elem.msRequestFullscreen();
+            }
+
+            // Hide fullscreen button after activation
+            document.getElementById('fullscreen-btn').style.display = 'none';
+        }
+
+        // Auto-hide fullscreen button if already in fullscreen
+        document.addEventListener('fullscreenchange', function() {
+            if (document.fullscreenElement) {
+                document.getElementById('fullscreen-btn').style.display = 'none';
+            } else {
+                document.getElementById('fullscreen-btn').style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>
