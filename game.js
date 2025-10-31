@@ -382,15 +382,18 @@ class LobbyScene extends Phaser.Scene {
         lobby.setScrollFactor(0);
         lobby.setDepth(-100);
 
-        // Dialog frame for start message
-        const textY = GAME_STATE.currentOrientation === 'portrait' ? height * 0.88 : height * 0.80;
+        // Dialog frame for start message - reduced by 1/3 and positioned at bottom
+        const bottomPadding = 40; // Padding from bottom edge
+        const dialogWidth = 493; // 740 * 2/3
+        const dialogHeight = 73;  // 110 * 2/3
+        const textY = height - bottomPadding - (dialogHeight / 2);
 
-        const msgBg = this.add.rectangle(width / 2, textY, 740, 110, APP_COLORS.DIALOG_BG, 1.0);
-        msgBg.setStrokeStyle(5, 0x000000);
+        const msgBg = this.add.rectangle(width / 2, textY, dialogWidth, dialogHeight, APP_COLORS.DIALOG_BG, 1.0);
+        msgBg.setStrokeStyle(4, 0x000000);
         msgBg.setDepth(50);
 
         const style = {
-            fontSize: '40px',
+            fontSize: '27px', // 40 * 2/3
             fill: '#000',
             fontFamily: 'Arial',
             fontStyle: 'bold'
@@ -943,10 +946,10 @@ class WinnerScene extends Phaser.Scene {
             spanishFontSize = '32px';
             englishFontSize = '29px';
         } else {
-            // Landscape: upper right quadrant
-            fortuneX = width * 0.75;
+            // Landscape: 55%-85% of screen width (30% total)
+            fortuneX = width * 0.7;  // Center of 55%-85% range
             fortuneY = height * 0.25;
-            maxWidth = width * 0.22;
+            maxWidth = width * 0.3;  // 30% of screen width (85% - 55%)
             spanishFontSize = '40px';
             englishFontSize = '36px';
         }
@@ -962,29 +965,34 @@ class WinnerScene extends Phaser.Scene {
         ladyImage.setDisplaySize(imageWidth, imageHeight);
         fortuneContainer.add(ladyImage);
 
-        // Spanish text (bold, beige color)
+        // Spanish text (bold, beige color) with padding from image and edges
+        const textPadding = 40; // Extra padding from card_lady image
+        const rightMargin = 30; // Padding from right edge
+        const textStartX = -maxWidth / 2 + 160 + textPadding;
+        const textWidth = maxWidth - 160 - textPadding - rightMargin; // Account for padding and margins
+
         const spanishStyle = {
             fontSize: spanishFontSize,
             fill: '#F5D599',
             fontFamily: 'Arial',
             fontStyle: 'bold',
-            wordWrap: { width: maxWidth - 160 },
+            wordWrap: { width: textWidth },
             align: 'left'
         };
-        const spanishText = this.add.text(-maxWidth / 2 + 160, -imageHeight / 2, spanish, spanishStyle);
+        const spanishText = this.add.text(textStartX, -imageHeight / 2, spanish, spanishStyle);
         spanishText.setOrigin(0, 0);
         fortuneContainer.add(spanishText);
 
-        // English text (bold, beige color)
+        // English text (bold, beige color) with padding
         const englishStyle = {
             fontSize: englishFontSize,
             fill: '#F5D599',
             fontFamily: 'Arial',
             fontStyle: 'bold',
-            wordWrap: { width: maxWidth - 160 },
+            wordWrap: { width: textWidth },
             align: 'left'
         };
-        const englishText = this.add.text(-maxWidth / 2 + 160, -imageHeight / 2 + spanishText.height + 10, english, englishStyle);
+        const englishText = this.add.text(textStartX, -imageHeight / 2 + spanishText.height + 15, english, englishStyle);
         englishText.setOrigin(0, 0);
         fortuneContainer.add(englishText);
     }
@@ -1106,10 +1114,10 @@ class PlayAgainScene extends Phaser.Scene {
             spanishFontSize = '32px';
             englishFontSize = '29px';
         } else {
-            // Landscape: upper right quadrant
-            fortuneX = width * 0.75;
+            // Landscape: 55%-85% of screen width (30% total)
+            fortuneX = width * 0.7;  // Center of 55%-85% range
             fortuneY = height * 0.25;
-            maxWidth = width * 0.22;
+            maxWidth = width * 0.3;  // 30% of screen width (85% - 55%)
             spanishFontSize = '40px';
             englishFontSize = '36px';
         }
@@ -1125,29 +1133,34 @@ class PlayAgainScene extends Phaser.Scene {
         ladyImage.setDisplaySize(imageWidth, imageHeight);
         fortuneContainer.add(ladyImage);
 
-        // Spanish text (bold, beige color)
+        // Spanish text (bold, beige color) with padding from image and edges
+        const textPadding = 40; // Extra padding from card_lady image
+        const rightMargin = 30; // Padding from right edge
+        const textStartX = -maxWidth / 2 + 160 + textPadding;
+        const textWidth = maxWidth - 160 - textPadding - rightMargin; // Account for padding and margins
+
         const spanishStyle = {
             fontSize: spanishFontSize,
             fill: '#F5D599',
             fontFamily: 'Arial',
             fontStyle: 'bold',
-            wordWrap: { width: maxWidth - 160 },
+            wordWrap: { width: textWidth },
             align: 'left'
         };
-        const spanishText = this.add.text(-maxWidth / 2 + 160, -imageHeight / 2, spanish, spanishStyle);
+        const spanishText = this.add.text(textStartX, -imageHeight / 2, spanish, spanishStyle);
         spanishText.setOrigin(0, 0);
         fortuneContainer.add(spanishText);
 
-        // English text (bold, beige color)
+        // English text (bold, beige color) with padding
         const englishStyle = {
             fontSize: englishFontSize,
             fill: '#F5D599',
             fontFamily: 'Arial',
             fontStyle: 'bold',
-            wordWrap: { width: maxWidth - 160 },
+            wordWrap: { width: textWidth },
             align: 'left'
         };
-        const englishText = this.add.text(-maxWidth / 2 + 160, -imageHeight / 2 + spanishText.height + 10, english, englishStyle);
+        const englishText = this.add.text(textStartX, -imageHeight / 2 + spanishText.height + 15, english, englishStyle);
         englishText.setOrigin(0, 0);
         fortuneContainer.add(englishText);
     }
