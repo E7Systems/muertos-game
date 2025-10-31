@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=1080, height=1920, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Muertos - Juego de Memoria</title>
     <style>
         * {
@@ -14,27 +14,40 @@
         body {
             margin: 0;
             padding: 0;
-            background-color: #000;
+            background-color: #1a0a2e;
             font-family: 'Arial', sans-serif;
-            overflow-x: hidden;
-            overflow-y: auto;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
         }
 
         #game-container {
-            width: 1080px;
-            height: 1920px;
-            margin: 0 auto;
-            position: relative;
+            width: 100vw;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+            position: fixed;
+            top: 0;
+            left: 0;
             background-color: #1a0a2e;
+            display: block;
         }
 
         canvas {
             display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100% !important;
+            height: 100% !important;
         }
 
         /* Fullscreen button for kiosk mode */
         #fullscreen-btn {
-            position: absolute;
+            position: fixed;
             top: 20px;
             right: 20px;
             z-index: 1000;
