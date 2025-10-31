@@ -19,50 +19,102 @@ const CARD_TYPES = {
     WINNER: 'winner'
 };
 
-// Configuration for Easy Mode (Portrait)
+// Configuration for Easy Mode
 const EASY_CONFIG = {
-    orientation: 'portrait',
-    columns: 3,
-    rows: 5,
     cardCount: 15,
-    cardWidth: 200,
-    cardHeight: 275,
-    gapX: 80,
-    gapY: 20,
-    startX: 260,
-    startY: 417.5,
     tiltRange: 4,
     offsetRange: 5,
     regularCardTypes: 6,  // Use 6 of the 10 regular card types
     winnerCards: 3
 };
 
-// Configuration for Hard Mode (Landscape)
+// Configuration for Hard Mode
 const HARD_CONFIG = {
-    orientation: 'landscape',
-    columns: 7,
-    rows: 3,
     cardCount: 21,
-    cardWidth: 175,
-    cardHeight: 241,
-    gapX: 60,
-    gapY: 70,
-    startX: 175,
-    startY: 336.5,
     tiltRange: 4,
     offsetRange: 5,
     regularCardTypes: 9,  // Use 9 of 10 available regular card types
     winnerCards: 3
 };
 
+// Function to calculate grid layout based on orientation and card count
+function calculateGridLayout(cardCount, screenWidth, screenHeight) {
+    const isLandscape = screenWidth > screenHeight;
+
+    if (isLandscape) {
+        // Landscape: max 3 rows, calculate columns
+        const maxRows = 3;
+        const columns = Math.ceil(cardCount / maxRows);
+        const rows = Math.min(maxRows, Math.ceil(cardCount / columns));
+        return { columns, rows };
+    } else {
+        // Portrait: max 3 columns, calculate rows
+        const maxColumns = 3;
+        const rows = Math.ceil(cardCount / maxColumns);
+        const columns = Math.min(maxColumns, Math.ceil(cardCount / rows));
+        return { columns, rows };
+    }
+}
+
+// Function to calculate card dimensions and spacing based on grid and play area
+function calculateCardDimensions(gridLayout, playWidth, playHeight) {
+    const { columns, rows } = gridLayout;
+
+    // Card aspect ratio is 1:1.375 (width:height)
+    const cardAspectRatio = 200 / 275;
+
+    // Calculate maximum card size that fits within play area
+    // Try fitting based on width
+    const gapXRatio = 0.4; // Gap is 40% of card width
+    const gapYRatio = 0.073; // Gap is ~7.3% of card height (20px / 275px)
+
+    const maxCardWidthFromWidth = playWidth / (columns + (columns - 1) * gapXRatio);
+    const maxCardHeightFromWidth = maxCardWidthFromWidth / cardAspectRatio;
+
+    // Try fitting based on height
+    const maxCardHeightFromHeight = playHeight / (rows + (rows - 1) * gapYRatio);
+    const maxCardWidthFromHeight = maxCardHeightFromHeight * cardAspectRatio;
+
+    // Use the smaller dimension to ensure cards fit
+    let cardWidth, cardHeight;
+    if (maxCardWidthFromWidth * (rows + (rows - 1) * gapYRatio) / cardAspectRatio <= playHeight) {
+        cardWidth = maxCardWidthFromWidth;
+        cardHeight = maxCardHeightFromWidth;
+    } else {
+        cardWidth = maxCardWidthFromHeight;
+        cardHeight = maxCardHeightFromHeight;
+    }
+
+    // Calculate gaps
+    const gapX = cardWidth * gapXRatio;
+    const gapY = cardHeight * gapYRatio;
+
+    return {
+        cardWidth: Math.floor(cardWidth),
+        cardHeight: Math.floor(cardHeight),
+        gapX: Math.floor(gapX),
+        gapY: Math.floor(gapY)
+    };
+}
+
 // Game constants
 const GAME_CONSTANTS = {
-    MAX_MISMATCHED_TURNS: 5,
+    EASY_MAX_TURNS: 5,
+    HARD_MAX_TURNS: 10,
     FLIP_BACK_DELAY: 3000,
     INACTIVITY_WARNING: 45000,
     INACTIVITY_RETURN: 15000,
     MATCH_CELEBRATION_DURATION: 1000,
-    END_SCREEN_DURATION: 7000  // 7 seconds for winner/play_again screens
+    END_SCREEN_DURATION: 15000  // 15 seconds for winner/play_again screens with advice
+};
+
+// App color palette
+const APP_COLORS = {
+    YELLOW: 0xffd24d,
+    ORANGE: 0xbe3d12,
+    GREEN: 0x4a7158,
+    RED: 0xbb3612,
+    DIALOG_BG: 0xF5D599
 };
 
 // Global game state
@@ -93,7 +145,7 @@ class BootScene extends Phaser.Scene {
         // Dialog frame for loading message
         const bgWidth = 720;
         const bgHeight = 160;
-        this.loadingBg = this.add.rectangle(width / 2, height / 2, bgWidth, bgHeight, 0xF5D599, 1.0);
+        this.loadingBg = this.add.rectangle(width / 2, height / 2, bgWidth, bgHeight, APP_COLORS.DIALOG_BG, 1.0);
         this.loadingBg.setStrokeStyle(5, 0x000000);
 
         const style = {
@@ -111,8 +163,15 @@ class BootScene extends Phaser.Scene {
         // Detect initial orientation
         GAME_STATE.currentOrientation = detectOrientation();
 
-        // Move to difficulty select
-        this.scene.start('DifficultySelectScene');
+        // Portrait mode: always Easy, skip difficulty selection
+        // Landscape mode: show difficulty selection
+        if (GAME_STATE.currentOrientation === 'portrait') {
+            GAME_STATE.difficulty = 'easy';
+            GAME_STATE.config = EASY_CONFIG;
+            this.scene.start('LobbyScene');
+        } else {
+            this.scene.start('DifficultySelectScene');
+        }
     }
 }
 
@@ -137,63 +196,79 @@ class DifficultySelectScene extends Phaser.Scene {
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
 
-        // Display lobby background - show ENTIRE image without cropping
+        // Display lobby background - STRETCH to fill entire screen
         const lobby = this.add.image(width / 2, height / 2, 'lobby');
-
-        // Scale to fit entire image (letterbox if needed)
-        const scaleX = width / lobby.width;
-        const scaleY = height / lobby.height;
-        const scale = Math.min(scaleX, scaleY);
-        lobby.setScale(scale);
+        lobby.setDisplaySize(width, height);
         lobby.setScrollFactor(0);
         lobby.setDepth(-100);
 
-        // Dialog frame for difficulty selection
-        const dialogWidth = 800;
-        const dialogHeight = 600;
-        const dialogBg = this.add.rectangle(width / 2, height / 2, dialogWidth, dialogHeight, 0xF5D599, 1.0);
-        dialogBg.setStrokeStyle(6, 0x000000);
+        // Dialog frame for difficulty selection - 2/3 smaller with rounded corners
+        const dialogWidth = 533;
+        const dialogHeight = 400;
+        const cornerRadius = 20;
+
+        const dialogBg = this.add.graphics();
+        dialogBg.fillStyle(APP_COLORS.DIALOG_BG, 1.0);
+        dialogBg.lineStyle(6, 0x000000, 1.0);
+        dialogBg.fillRoundedRect(width / 2 - dialogWidth / 2, height / 2 - dialogHeight / 2, dialogWidth, dialogHeight, cornerRadius);
+        dialogBg.strokeRoundedRect(width / 2 - dialogWidth / 2, height / 2 - dialogHeight / 2, dialogWidth, dialogHeight, cornerRadius);
         dialogBg.setDepth(50);
 
-        // Title text - on top of dialog
-        const titleStyle = {
-            fontSize: '64px',
+        // Header text - "Modo Experto" at top
+        const headerStyle = {
+            fontSize: '42px',
             fill: '#000',
             fontFamily: 'Arial',
             fontStyle: 'bold'
         };
-        const titleText = this.add.text(width / 2, height / 2 - 200, 'Selecciona Dificultad', titleStyle).setOrigin(0.5);
-        titleText.setDepth(51);
+        const headerText = this.add.text(width / 2, height / 2 - 133, 'Modo Experto', headerStyle).setOrigin(0.5);
+        headerText.setDepth(51);
 
         // Button style
         const buttonStyle = {
-            fontSize: '56px',
+            fontSize: '38px',
             fill: '#000',
             fontFamily: 'Arial',
             fontStyle: 'bold'
         };
 
-        // Easy button
-        const easyBg = this.add.rectangle(width / 2, height / 2 - 60, 500, 100, 0x90EE90, 1.0);
-        easyBg.setStrokeStyle(4, 0x000000);
-        easyBg.setInteractive();
+        // Easy button (Green) with rounded corners
+        const buttonWidth = 333;
+        const buttonHeight = 67;
+        const buttonRadius = 15;
+
+        const easyBg = this.add.graphics();
+        easyBg.fillStyle(APP_COLORS.GREEN, 1.0);
+        easyBg.lineStyle(4, 0x000000, 1.0);
+        easyBg.fillRoundedRect(width / 2 - buttonWidth / 2, height / 2 - 40 - buttonHeight / 2, buttonWidth, buttonHeight, buttonRadius);
+        easyBg.strokeRoundedRect(width / 2 - buttonWidth / 2, height / 2 - 40 - buttonHeight / 2, buttonWidth, buttonHeight, buttonRadius);
         easyBg.setDepth(51);
-        const easyText = this.add.text(width / 2, height / 2 - 60, 'FÁCIL', buttonStyle).setOrigin(0.5);
+        easyBg.setInteractive(new Phaser.Geom.Rectangle(width / 2 - buttonWidth / 2, height / 2 - 40 - buttonHeight / 2, buttonWidth, buttonHeight), Phaser.Geom.Rectangle.Contains);
+
+        const easyText = this.add.text(width / 2, height / 2 - 40, 'FÁCIL', buttonStyle).setOrigin(0.5);
         easyText.setDepth(52);
 
         easyBg.on('pointerover', () => {
-            easyBg.setFillStyle(0x00aa00, 1.0);
+            easyBg.clear();
+            easyBg.fillStyle(APP_COLORS.YELLOW, 1.0);
+            easyBg.lineStyle(4, 0x000000, 1.0);
+            easyBg.fillRoundedRect(width / 2 - buttonWidth / 2, height / 2 - 40 - buttonHeight / 2, buttonWidth, buttonHeight, buttonRadius);
+            easyBg.strokeRoundedRect(width / 2 - buttonWidth / 2, height / 2 - 40 - buttonHeight / 2, buttonWidth, buttonHeight, buttonRadius);
             this.tweens.add({
-                targets: [easyBg, easyText],
-                scale: 1.1,
+                targets: [easyText],
+                scale: 1.05,
                 duration: 200
             });
         });
 
         easyBg.on('pointerout', () => {
-            easyBg.setFillStyle(0x006400, 1.0);
+            easyBg.clear();
+            easyBg.fillStyle(APP_COLORS.GREEN, 1.0);
+            easyBg.lineStyle(4, 0x000000, 1.0);
+            easyBg.fillRoundedRect(width / 2 - buttonWidth / 2, height / 2 - 40 - buttonHeight / 2, buttonWidth, buttonHeight, buttonRadius);
+            easyBg.strokeRoundedRect(width / 2 - buttonWidth / 2, height / 2 - 40 - buttonHeight / 2, buttonWidth, buttonHeight, buttonRadius);
             this.tweens.add({
-                targets: [easyBg, easyText],
+                targets: [easyText],
                 scale: 1.0,
                 duration: 200
             });
@@ -205,27 +280,39 @@ class DifficultySelectScene extends Phaser.Scene {
             this.scene.start('LobbyScene');
         });
 
-        // Hard button
-        const hardBg = this.add.rectangle(width / 2, height / 2 + 70, 500, 100, 0xFFB6C1, 1.0);
-        hardBg.setStrokeStyle(4, 0x000000);
-        hardBg.setInteractive();
+        // Hard button (Orange) with rounded corners
+        const hardBg = this.add.graphics();
+        hardBg.fillStyle(APP_COLORS.ORANGE, 1.0);
+        hardBg.lineStyle(4, 0x000000, 1.0);
+        hardBg.fillRoundedRect(width / 2 - buttonWidth / 2, height / 2 + 47 - buttonHeight / 2, buttonWidth, buttonHeight, buttonRadius);
+        hardBg.strokeRoundedRect(width / 2 - buttonWidth / 2, height / 2 + 47 - buttonHeight / 2, buttonWidth, buttonHeight, buttonRadius);
         hardBg.setDepth(51);
-        const hardText = this.add.text(width / 2, height / 2 + 70, 'DIFÍCIL', buttonStyle).setOrigin(0.5);
+        hardBg.setInteractive(new Phaser.Geom.Rectangle(width / 2 - buttonWidth / 2, height / 2 + 47 - buttonHeight / 2, buttonWidth, buttonHeight), Phaser.Geom.Rectangle.Contains);
+
+        const hardText = this.add.text(width / 2, height / 2 + 47, 'DIFÍCIL', buttonStyle).setOrigin(0.5);
         hardText.setDepth(52);
 
         hardBg.on('pointerover', () => {
-            hardBg.setFillStyle(0xFF69B4, 1.0);
+            hardBg.clear();
+            hardBg.fillStyle(APP_COLORS.RED, 1.0);
+            hardBg.lineStyle(4, 0x000000, 1.0);
+            hardBg.fillRoundedRect(width / 2 - buttonWidth / 2, height / 2 + 47 - buttonHeight / 2, buttonWidth, buttonHeight, buttonRadius);
+            hardBg.strokeRoundedRect(width / 2 - buttonWidth / 2, height / 2 + 47 - buttonHeight / 2, buttonWidth, buttonHeight, buttonRadius);
             this.tweens.add({
-                targets: [hardBg, hardText],
+                targets: [hardText],
                 scale: 1.05,
                 duration: 200
             });
         });
 
         hardBg.on('pointerout', () => {
-            hardBg.setFillStyle(0xFFB6C1, 1.0);
+            hardBg.clear();
+            hardBg.fillStyle(APP_COLORS.ORANGE, 1.0);
+            hardBg.lineStyle(4, 0x000000, 1.0);
+            hardBg.fillRoundedRect(width / 2 - buttonWidth / 2, height / 2 + 47 - buttonHeight / 2, buttonWidth, buttonHeight, buttonRadius);
+            hardBg.strokeRoundedRect(width / 2 - buttonWidth / 2, height / 2 + 47 - buttonHeight / 2, buttonWidth, buttonHeight, buttonRadius);
             this.tweens.add({
-                targets: [hardBg, hardText],
+                targets: [hardText],
                 scale: 1.0,
                 duration: 200
             });
@@ -239,13 +326,14 @@ class DifficultySelectScene extends Phaser.Scene {
 
         // Description text
         const descStyle = {
-            fontSize: '28px',
+            fontSize: '19px',
             fill: '#000',
             fontFamily: 'Arial',
-            align: 'center'
+            align: 'center',
+            wordWrap: { width: dialogWidth - 40 }
         };
-        const descText = this.add.text(width / 2, height / 2 + 210,
-            'Fácil: 15 cartas | Difícil: 21 cartas',
+        const descText = this.add.text(width / 2, height / 2 + 140,
+            'Fácil: 15 cartas, 5 intentos\nDifícil: 21 cartas, 10 intentos',
             descStyle).setOrigin(0.5);
         descText.setDepth(51);
     }
@@ -266,6 +354,9 @@ class LobbyScene extends Phaser.Scene {
         // Load assets based on current orientation
         const prefix = GAME_STATE.currentOrientation === 'landscape' ? 'land_' : '';
 
+        // Load lobby background (needed for portrait mode which skips DifficultySelectScene)
+        this.load.image('lobby', `assets/${prefix}lobby.jpg`);
+
         // Load screen backgrounds
         this.load.image('play-screen', `assets/${prefix}play.jpg`);
         this.load.image('winner-screen', `assets/${prefix}winner.jpg`);
@@ -285,21 +376,16 @@ class LobbyScene extends Phaser.Scene {
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
 
-        // Display lobby background - show ENTIRE image without cropping
+        // Display lobby background - STRETCH to fill entire screen
         const lobby = this.add.image(width / 2, height / 2, 'lobby');
-
-        // Scale to fit entire image (letterbox if needed)
-        const scaleX = width / lobby.width;
-        const scaleY = height / lobby.height;
-        const scale = Math.min(scaleX, scaleY);
-        lobby.setScale(scale);
+        lobby.setDisplaySize(width, height);
         lobby.setScrollFactor(0);
         lobby.setDepth(-100);
 
         // Dialog frame for start message
         const textY = GAME_STATE.currentOrientation === 'portrait' ? height * 0.88 : height * 0.80;
 
-        const msgBg = this.add.rectangle(width / 2, textY, 740, 110, 0xF5D599, 1.0);
+        const msgBg = this.add.rectangle(width / 2, textY, 740, 110, APP_COLORS.DIALOG_BG, 1.0);
         msgBg.setStrokeStyle(5, 0x000000);
         msgBg.setDepth(50);
 
@@ -335,14 +421,9 @@ class PlayScene extends Phaser.Scene {
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
 
-        // Display play screen background - show ENTIRE image without cropping
+        // Display play screen background - STRETCH to fill entire screen
         const playBg = this.add.image(width / 2, height / 2, 'play-screen');
-
-        // Scale to fit entire image (letterbox if needed)
-        const scaleX = width / playBg.width;
-        const scaleY = height / playBg.height;
-        const scale = Math.min(scaleX, scaleY);
-        playBg.setScale(scale);
+        playBg.setDisplaySize(width, height);
         playBg.setScrollFactor(0);
         playBg.setDepth(-100);
 
@@ -414,28 +495,43 @@ class PlayScene extends Phaser.Scene {
         // Shuffle the deck
         Phaser.Utils.Array.Shuffle(deck);
 
-        // Calculate grid positioning based on actual screen size
-        const totalCardWidth = config.columns * config.cardWidth;
-        const totalGapWidth = (config.columns - 1) * config.gapX;
+        // Calculate play area with margins: 12% vertical, 8% horizontal
+        const marginX = width * 0.08;
+        const marginY = height * 0.12;
+        const playWidth = width - (2 * marginX);
+        const playHeight = height - (2 * marginY);
+
+        // Calculate dynamic grid layout based on orientation
+        const gridLayout = calculateGridLayout(config.cardCount, width, height);
+        const cardDimensions = calculateCardDimensions(gridLayout, playWidth, playHeight);
+
+        // Store calculated dimensions for use in createCard
+        this.cardWidth = cardDimensions.cardWidth;
+        this.cardHeight = cardDimensions.cardHeight;
+        this.gridLayout = gridLayout;
+
+        // Calculate grid positioning to fit within play area
+        const totalCardWidth = gridLayout.columns * cardDimensions.cardWidth;
+        const totalGapWidth = (gridLayout.columns - 1) * cardDimensions.gapX;
         const gridWidth = totalCardWidth + totalGapWidth;
 
-        const totalCardHeight = config.rows * config.cardHeight;
-        const totalGapHeight = (config.rows - 1) * config.gapY;
+        const totalCardHeight = gridLayout.rows * cardDimensions.cardHeight;
+        const totalGapHeight = (gridLayout.rows - 1) * cardDimensions.gapY;
         const gridHeight = totalCardHeight + totalGapHeight;
 
-        // Center the grid in the screen
-        const startX = (width - gridWidth) / 2 + config.cardWidth / 2;
-        const startY = (height - gridHeight) / 2 + config.cardHeight / 2;
+        // Center the grid within the play area
+        const startX = marginX + (playWidth - gridWidth) / 2 + cardDimensions.cardWidth / 2;
+        const startY = marginY + (playHeight - gridHeight) / 2 + cardDimensions.cardHeight / 2;
 
         // Deal cards in grid
         this.cards = [];
         let index = 0;
 
-        for (let row = 0; row < config.rows; row++) {
-            for (let col = 0; col < config.columns; col++) {
+        for (let row = 0; row < gridLayout.rows; row++) {
+            for (let col = 0; col < gridLayout.columns; col++) {
                 const cardData = deck[index];
-                const x = startX + (col * (config.cardWidth + config.gapX));
-                const y = startY + (row * (config.cardHeight + config.gapY));
+                const x = startX + (col * (cardDimensions.cardWidth + cardDimensions.gapX));
+                const y = startY + (row * (cardDimensions.cardHeight + cardDimensions.gapY));
 
                 const tilt = Phaser.Math.Between(-config.tiltRange, config.tiltRange);
                 const offsetX = Phaser.Math.Between(-config.offsetRange, config.offsetRange);
@@ -456,18 +552,17 @@ class PlayScene extends Phaser.Scene {
     }
 
     createCard(x, y, type, id, rotation) {
-        const config = GAME_STATE.config;
         const container = this.add.container(x, y);
 
         const back = this.add.image(0, 0, 'card-back');
-        back.setDisplaySize(config.cardWidth, config.cardHeight);
+        back.setDisplaySize(this.cardWidth, this.cardHeight);
 
         const front = this.add.image(0, 0, `card-${type}`);
-        front.setDisplaySize(config.cardWidth, config.cardHeight);
+        front.setDisplaySize(this.cardWidth, this.cardHeight);
         front.setVisible(false);
 
         container.add([back, front]);
-        container.setSize(config.cardWidth, config.cardHeight);
+        container.setSize(this.cardWidth, this.cardHeight);
         container.setAngle(rotation);
         container.setInteractive();
 
@@ -583,7 +678,9 @@ class PlayScene extends Phaser.Scene {
         this.mismatchedTurns++;
         this.updateTurnCounter();
 
-        if (this.mismatchedTurns >= GAME_CONSTANTS.MAX_MISMATCHED_TURNS) {
+        const maxTurns = GAME_STATE.difficulty === 'easy' ? GAME_CONSTANTS.EASY_MAX_TURNS : GAME_CONSTANTS.HARD_MAX_TURNS;
+
+        if (this.mismatchedTurns >= maxTurns) {
             this.time.delayedCall(1000, () => {
                 this.loseGame();
             });
@@ -652,20 +749,24 @@ class PlayScene extends Phaser.Scene {
             fontStyle: 'bold'
         };
 
+        // Get max turns based on difficulty
+        const maxTurns = GAME_STATE.difficulty === 'easy' ? GAME_CONSTANTS.EASY_MAX_TURNS : GAME_CONSTANTS.HARD_MAX_TURNS;
+
         // Dialog frame
-        this.turnBackground = this.add.rectangle(width / 2, centerY, 500, 80, 0xF5D599, 1.0);
+        this.turnBackground = this.add.rectangle(width / 2, centerY, 500, 80, APP_COLORS.DIALOG_BG, 1.0);
         this.turnBackground.setStrokeStyle(4, 0x000000);
         this.turnBackground.setDepth(100);
 
         this.turnText = this.add.text(width / 2, centerY,
-            `Intentos restantes: ${GAME_CONSTANTS.MAX_MISMATCHED_TURNS - this.mismatchedTurns}`,
+            `Intentos restantes: ${maxTurns - this.mismatchedTurns}`,
             style
         ).setOrigin(0.5);
         this.turnText.setDepth(101);
     }
 
     updateTurnCounter() {
-        const remaining = GAME_CONSTANTS.MAX_MISMATCHED_TURNS - this.mismatchedTurns;
+        const maxTurns = GAME_STATE.difficulty === 'easy' ? GAME_CONSTANTS.EASY_MAX_TURNS : GAME_CONSTANTS.HARD_MAX_TURNS;
+        const remaining = maxTurns - this.mismatchedTurns;
         this.turnText.setText(`Intentos restantes: ${remaining}`);
 
         if (remaining <= 2) {
@@ -719,8 +820,8 @@ class PlayScene extends Phaser.Scene {
             fontStyle: 'bold'
         };
 
-        // Dialog frame
-        this.warningBackground = this.add.rectangle(width / 2, height / 2, 700, 150, 0xF5D599, 1.0);
+        // Dialog frame (Yellow for warning)
+        this.warningBackground = this.add.rectangle(width / 2, height / 2, 700, 150, APP_COLORS.YELLOW, 1.0);
         this.warningBackground.setStrokeStyle(6, 0x000000);
         this.warningBackground.setDepth(200);
 
@@ -752,7 +853,15 @@ class PlayScene extends Phaser.Scene {
     }
 
     returnToDifficulty() {
-        this.scene.start('DifficultySelectScene');
+        // Portrait mode: return to lobby with Easy mode
+        // Landscape mode: return to difficulty selection
+        if (GAME_STATE.currentOrientation === 'portrait') {
+            GAME_STATE.difficulty = 'easy';
+            GAME_STATE.config = EASY_CONFIG;
+            this.scene.start('LobbyScene');
+        } else {
+            this.scene.start('DifficultySelectScene');
+        }
     }
 }
 
@@ -764,6 +873,13 @@ class WinnerScene extends Phaser.Scene {
         super({ key: 'WinnerScene' });
     }
 
+    preload() {
+        // Load fortunes file
+        this.load.text('fortunes', 'assets/fortunes.txt');
+        // Load card_lady for fortune display
+        this.load.image('fortune-lady', 'assets/card_lady.png');
+    }
+
     create() {
         // Update orientation
         GAME_STATE.currentOrientation = detectOrientation();
@@ -771,45 +887,26 @@ class WinnerScene extends Phaser.Scene {
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
 
-        // Display winner background - show ENTIRE image without cropping
+        // Display winner background - STRETCH to fill entire screen
         const winner = this.add.image(width / 2, height / 2, 'winner-screen');
-
-        // Scale to fit entire image (letterbox if needed)
-        const scaleX = width / winner.width;
-        const scaleY = height / winner.height;
-        const scale = Math.min(scaleX, scaleY);
-        winner.setScale(scale);
+        winner.setDisplaySize(width, height);
         winner.setScrollFactor(0);
         winner.setDepth(-100);
 
-        // Dialog frame for winner message
-        const msgBg = this.add.rectangle(width / 2, height * 0.3, 650, 180, 0xF5D599, 1.0);
-        msgBg.setStrokeStyle(8, 0x000000);
-        msgBg.setDepth(499);
-
-        const style = {
-            fontSize: '90px',
-            fill: '#000',
-            fontFamily: 'Arial',
-            fontStyle: 'bold'
-        };
-
-        const winText = this.add.text(width / 2, height * 0.3, '¡GANADOR!', style).setOrigin(0.5);
-        winText.setDepth(500);
-
-        this.tweens.add({
-            targets: [winText, msgBg],
-            scale: 1.05,
-            duration: 500,
-            yoyo: true,
-            repeat: -1
-        });
-
         this.createFireworks();
 
-        // 7 seconds timeout → return to difficulty select
+        // Display fortune in upper right quadrant
+        this.displayFortune(width, height);
+
+        // 7 seconds timeout → return to start (difficulty select in landscape, lobby in portrait)
         this.timeoutEvent = this.time.delayedCall(GAME_CONSTANTS.END_SCREEN_DURATION, () => {
-            this.scene.start('DifficultySelectScene');
+            if (GAME_STATE.currentOrientation === 'portrait') {
+                GAME_STATE.difficulty = 'easy';
+                GAME_STATE.config = EASY_CONFIG;
+                this.scene.start('LobbyScene');
+            } else {
+                this.scene.start('DifficultySelectScene');
+            }
         });
 
         // Touch → return to play screen (restart game)
@@ -819,6 +916,77 @@ class WinnerScene extends Phaser.Scene {
             }
             this.scene.start('PlayScene');
         });
+    }
+
+    displayFortune(width, height) {
+        // Get random fortune from lines 1-50
+        const fortunesText = this.cache.text.get('fortunes');
+        const lines = fortunesText.split('\n').filter(line => line.trim() !== '');
+        const randomIndex = Phaser.Math.Between(0, Math.min(49, lines.length - 1));
+        const fortuneLine = lines[randomIndex];
+
+        // Split by em-dash delimiter
+        const parts = fortuneLine.split(' — ');
+        if (parts.length < 2) return;
+
+        const spanish = parts[0].trim();
+        const english = parts[1].trim();
+
+        // Position based on orientation
+        let fortuneX, fortuneY, maxWidth, spanishFontSize, englishFontSize;
+        if (GAME_STATE.currentOrientation === 'portrait') {
+            // Portrait: centered horizontally, positioned vertically between 60%-80%
+            fortuneX = width * 0.5;
+            fortuneY = height * 0.7; // Center of 60%-80% range
+            maxWidth = width * 0.6;  // Use 60% of screen width
+            // Reduce font size by 20% for portrait
+            spanishFontSize = '32px';
+            englishFontSize = '29px';
+        } else {
+            // Landscape: upper right quadrant
+            fortuneX = width * 0.75;
+            fortuneY = height * 0.25;
+            maxWidth = width * 0.22;
+            spanishFontSize = '40px';
+            englishFontSize = '36px';
+        }
+
+        // Create container for fortune display
+        const fortuneContainer = this.add.container(fortuneX, fortuneY);
+        fortuneContainer.setDepth(500);
+
+        // Add card_lady image (150px wide)
+        const ladyImage = this.add.image(-maxWidth / 2 + 75, 0, 'fortune-lady');
+        const imageWidth = 150;
+        const imageHeight = imageWidth * (275 / 200); // Maintain card aspect ratio
+        ladyImage.setDisplaySize(imageWidth, imageHeight);
+        fortuneContainer.add(ladyImage);
+
+        // Spanish text (bold, beige color)
+        const spanishStyle = {
+            fontSize: spanishFontSize,
+            fill: '#F5D599',
+            fontFamily: 'Arial',
+            fontStyle: 'bold',
+            wordWrap: { width: maxWidth - 160 },
+            align: 'left'
+        };
+        const spanishText = this.add.text(-maxWidth / 2 + 160, -imageHeight / 2, spanish, spanishStyle);
+        spanishText.setOrigin(0, 0);
+        fortuneContainer.add(spanishText);
+
+        // English text (bold, beige color)
+        const englishStyle = {
+            fontSize: englishFontSize,
+            fill: '#F5D599',
+            fontFamily: 'Arial',
+            fontStyle: 'bold',
+            wordWrap: { width: maxWidth - 160 },
+            align: 'left'
+        };
+        const englishText = this.add.text(-maxWidth / 2 + 160, -imageHeight / 2 + spanishText.height + 10, english, englishStyle);
+        englishText.setOrigin(0, 0);
+        fortuneContainer.add(englishText);
     }
 
     createFireworks() {
@@ -870,6 +1038,13 @@ class PlayAgainScene extends Phaser.Scene {
         super({ key: 'PlayAgainScene' });
     }
 
+    preload() {
+        // Load fortunes file
+        this.load.text('fortunes', 'assets/fortunes.txt');
+        // Load card_lady for fortune display
+        this.load.image('fortune-lady', 'assets/card_lady.png');
+    }
+
     create() {
         // Update orientation
         GAME_STATE.currentOrientation = detectOrientation();
@@ -877,35 +1052,24 @@ class PlayAgainScene extends Phaser.Scene {
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
 
-        // Display play again background - show ENTIRE image without cropping
+        // Display play again background - STRETCH to fill entire screen
         const playAgain = this.add.image(width / 2, height / 2, 'playagain-screen');
-
-        // Scale to fit entire image (letterbox if needed)
-        const scaleX = width / playAgain.width;
-        const scaleY = height / playAgain.height;
-        const scale = Math.min(scaleX, scaleY);
-        playAgain.setScale(scale);
+        playAgain.setDisplaySize(width, height);
         playAgain.setScrollFactor(0);
         playAgain.setDepth(-100);
 
-        const dimOverlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.3);
+        // Display fortune in upper right quadrant
+        this.displayFortune(width, height);
 
-        // Dialog frame for message
-        const msgBg = this.add.rectangle(width / 2, height / 2, 700, 150, 0xF5D599, 1.0);
-        msgBg.setStrokeStyle(6, 0x000000);
-
-        const style = {
-            fontSize: '52px',
-            fill: '#000',
-            fontFamily: 'Arial',
-            fontStyle: 'bold'
-        };
-
-        this.add.text(width / 2, height / 2, 'Inténtalo otra vez', style).setOrigin(0.5);
-
-        // 7 seconds timeout → return to difficulty select
+        // 7 seconds timeout → return to start (difficulty select in landscape, lobby in portrait)
         this.timeoutEvent = this.time.delayedCall(GAME_CONSTANTS.END_SCREEN_DURATION, () => {
-            this.scene.start('DifficultySelectScene');
+            if (GAME_STATE.currentOrientation === 'portrait') {
+                GAME_STATE.difficulty = 'easy';
+                GAME_STATE.config = EASY_CONFIG;
+                this.scene.start('LobbyScene');
+            } else {
+                this.scene.start('DifficultySelectScene');
+            }
         });
 
         // Touch → return to play screen (restart game)
@@ -915,6 +1079,77 @@ class PlayAgainScene extends Phaser.Scene {
             }
             this.scene.start('PlayScene');
         });
+    }
+
+    displayFortune(width, height) {
+        // Get random fortune from lines 1-50
+        const fortunesText = this.cache.text.get('fortunes');
+        const lines = fortunesText.split('\n').filter(line => line.trim() !== '');
+        const randomIndex = Phaser.Math.Between(0, Math.min(49, lines.length - 1));
+        const fortuneLine = lines[randomIndex];
+
+        // Split by em-dash delimiter
+        const parts = fortuneLine.split(' — ');
+        if (parts.length < 2) return;
+
+        const spanish = parts[0].trim();
+        const english = parts[1].trim();
+
+        // Position based on orientation
+        let fortuneX, fortuneY, maxWidth, spanishFontSize, englishFontSize;
+        if (GAME_STATE.currentOrientation === 'portrait') {
+            // Portrait: centered horizontally, positioned vertically between 60%-80%
+            fortuneX = width * 0.5;
+            fortuneY = height * 0.7; // Center of 60%-80% range
+            maxWidth = width * 0.6;  // Use 60% of screen width
+            // Reduce font size by 20% for portrait
+            spanishFontSize = '32px';
+            englishFontSize = '29px';
+        } else {
+            // Landscape: upper right quadrant
+            fortuneX = width * 0.75;
+            fortuneY = height * 0.25;
+            maxWidth = width * 0.22;
+            spanishFontSize = '40px';
+            englishFontSize = '36px';
+        }
+
+        // Create container for fortune display
+        const fortuneContainer = this.add.container(fortuneX, fortuneY);
+        fortuneContainer.setDepth(500);
+
+        // Add card_lady image (150px wide)
+        const ladyImage = this.add.image(-maxWidth / 2 + 75, 0, 'fortune-lady');
+        const imageWidth = 150;
+        const imageHeight = imageWidth * (275 / 200); // Maintain card aspect ratio
+        ladyImage.setDisplaySize(imageWidth, imageHeight);
+        fortuneContainer.add(ladyImage);
+
+        // Spanish text (bold, beige color)
+        const spanishStyle = {
+            fontSize: spanishFontSize,
+            fill: '#F5D599',
+            fontFamily: 'Arial',
+            fontStyle: 'bold',
+            wordWrap: { width: maxWidth - 160 },
+            align: 'left'
+        };
+        const spanishText = this.add.text(-maxWidth / 2 + 160, -imageHeight / 2, spanish, spanishStyle);
+        spanishText.setOrigin(0, 0);
+        fortuneContainer.add(spanishText);
+
+        // English text (bold, beige color)
+        const englishStyle = {
+            fontSize: englishFontSize,
+            fill: '#F5D599',
+            fontFamily: 'Arial',
+            fontStyle: 'bold',
+            wordWrap: { width: maxWidth - 160 },
+            align: 'left'
+        };
+        const englishText = this.add.text(-maxWidth / 2 + 160, -imageHeight / 2 + spanishText.height + 10, english, englishStyle);
+        englishText.setOrigin(0, 0);
+        fortuneContainer.add(englishText);
     }
 }
 
