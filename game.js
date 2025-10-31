@@ -121,7 +121,8 @@ const APP_COLORS = {
 const GAME_STATE = {
     difficulty: null,       // 'easy' or 'hard'
     config: null,          // Will hold EASY_CONFIG or HARD_CONFIG
-    currentOrientation: null  // 'portrait' or 'landscape'
+    currentOrientation: null,  // 'portrait' or 'landscape'
+    sounds: {}             // Audio instances
 };
 
 // Helper function to detect orientation
@@ -275,6 +276,7 @@ class DifficultySelectScene extends Phaser.Scene {
         });
 
         easyBg.on('pointerdown', () => {
+            GAME_STATE.sounds.click.play();
             GAME_STATE.difficulty = 'easy';
             GAME_STATE.config = EASY_CONFIG;
             this.scene.start('LobbyScene');
@@ -319,6 +321,7 @@ class DifficultySelectScene extends Phaser.Scene {
         });
 
         hardBg.on('pointerdown', () => {
+            GAME_STATE.sounds.click.play();
             GAME_STATE.difficulty = 'hard';
             GAME_STATE.config = HARD_CONFIG;
             this.scene.start('LobbyScene');
@@ -370,11 +373,31 @@ class LobbyScene extends Phaser.Scene {
             this.load.image(`card-${type}`, `assets/card_${type}.png`);
         });
         this.load.image('card-winner', 'assets/card_winner.png');
+
+        // Load audio files
+        this.load.audio('bg-music', 'assets/audio/mariachi-background.mp3');
+        this.load.audio('card-flip', 'assets/audio/card-flip.mp3');
+        this.load.audio('match', 'assets/audio/match-celebration.mp3');
+        this.load.audio('mismatch', 'assets/audio/mismatch.mp3');
+        this.load.audio('winner', 'assets/audio/fireworks-pop.mp3');
+        this.load.audio('loser', 'assets/audio/trumpet-flare.mp3');
+        this.load.audio('click', 'assets/audio/button-click.mp3');
     }
 
     create() {
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
+
+        // Create sound instances if not already created
+        if (!GAME_STATE.sounds.bgMusic) {
+            GAME_STATE.sounds.bgMusic = this.sound.add('bg-music', { loop: true, volume: 0.4 });
+            GAME_STATE.sounds.cardFlip = this.sound.add('card-flip', { volume: 0.6 });
+            GAME_STATE.sounds.match = this.sound.add('match', { volume: 0.7 });
+            GAME_STATE.sounds.mismatch = this.sound.add('mismatch', { volume: 0.5 });
+            GAME_STATE.sounds.winner = this.sound.add('winner', { volume: 0.8 });
+            GAME_STATE.sounds.loser = this.sound.add('loser', { volume: 0.7 });
+            GAME_STATE.sounds.click = this.sound.add('click', { volume: 0.5 });
+        }
 
         // Display lobby background - STRETCH to fill entire screen
         const lobby = this.add.image(width / 2, height / 2, 'lobby');
@@ -404,6 +427,7 @@ class LobbyScene extends Phaser.Scene {
 
         // Tap to start
         this.input.once('pointerdown', () => {
+            GAME_STATE.sounds.click.play();
             this.scene.start('PlayScene');
         });
     }
@@ -423,6 +447,11 @@ class PlayScene extends Phaser.Scene {
 
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
+
+        // Start background music if not already playing
+        if (!GAME_STATE.sounds.bgMusic.isPlaying) {
+            GAME_STATE.sounds.bgMusic.play();
+        }
 
         // Display play screen background - STRETCH to fill entire screen
         const playBg = this.add.image(width / 2, height / 2, 'play-screen');
@@ -625,6 +654,9 @@ class PlayScene extends Phaser.Scene {
     }
 
     flipCard(card, showFront) {
+        // Play card flip sound
+        GAME_STATE.sounds.cardFlip.play();
+
         this.tweens.add({
             targets: card,
             scaleX: 0,
@@ -661,6 +693,9 @@ class PlayScene extends Phaser.Scene {
         card2.cardData.isMatched = true;
         this.matchedCards.push(card1, card2);
 
+        // Play match sound
+        GAME_STATE.sounds.match.play();
+
         this.showMatchCelebration(card1, card2);
 
         if (card1.cardData.type === CARD_TYPES.WINNER) {
@@ -680,6 +715,9 @@ class PlayScene extends Phaser.Scene {
     handleMismatch(card1, card2) {
         this.mismatchedTurns++;
         this.updateTurnCounter();
+
+        // Play mismatch sound
+        GAME_STATE.sounds.mismatch.play();
 
         const maxTurns = GAME_STATE.difficulty === 'easy' ? GAME_CONSTANTS.EASY_MAX_TURNS : GAME_CONSTANTS.HARD_MAX_TURNS;
 
@@ -890,6 +928,10 @@ class WinnerScene extends Phaser.Scene {
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
 
+        // Stop background music and play winner sound
+        GAME_STATE.sounds.bgMusic.stop();
+        GAME_STATE.sounds.winner.play();
+
         // Display winner background - STRETCH to fill entire screen
         const winner = this.add.image(width / 2, height / 2, 'winner-screen');
         winner.setDisplaySize(width, height);
@@ -1059,6 +1101,10 @@ class PlayAgainScene extends Phaser.Scene {
 
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
+
+        // Stop background music and play loser sound
+        GAME_STATE.sounds.bgMusic.stop();
+        GAME_STATE.sounds.loser.play();
 
         // Display play again background - STRETCH to fill entire screen
         const playAgain = this.add.image(width / 2, height / 2, 'playagain-screen');
