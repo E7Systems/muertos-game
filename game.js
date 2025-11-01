@@ -276,7 +276,9 @@ class DifficultySelectScene extends Phaser.Scene {
         });
 
         easyBg.on('pointerdown', () => {
-            GAME_STATE.sounds.click.play();
+            if (GAME_STATE.sounds.click) {
+                GAME_STATE.sounds.click.play();
+            }
             GAME_STATE.difficulty = 'easy';
             GAME_STATE.config = EASY_CONFIG;
             this.scene.start('LobbyScene');
@@ -321,7 +323,9 @@ class DifficultySelectScene extends Phaser.Scene {
         });
 
         hardBg.on('pointerdown', () => {
-            GAME_STATE.sounds.click.play();
+            if (GAME_STATE.sounds.click) {
+                GAME_STATE.sounds.click.play();
+            }
             GAME_STATE.difficulty = 'hard';
             GAME_STATE.config = HARD_CONFIG;
             this.scene.start('LobbyScene');
@@ -375,12 +379,12 @@ class LobbyScene extends Phaser.Scene {
         this.load.image('card-winner', 'assets/card_winner.png');
 
         // Load audio files
-        this.load.audio('bg-music', 'assets/audio/mariachi-background.mp3');
-        this.load.audio('card-flip', 'assets/audio/card-flip.mp3');
-        this.load.audio('match', 'assets/audio/match-celebration.mp3');
-        this.load.audio('mismatch', 'assets/audio/mismatch.mp3');
-        this.load.audio('winner', 'assets/audio/fireworks-pop.mp3');
-        this.load.audio('loser', 'assets/audio/trumpet-flare.mp3');
+        this.load.audio('bg-music', 'assets/audio/dotdguitar.m4a');
+        this.load.audio('card-flip', 'assets/audio/card-flip.wav');
+        this.load.audio('match', 'assets/audio/match-celebration.wav');
+        this.load.audio('mismatch', 'assets/audio/mismatch.wav');
+        this.load.audio('winner', 'assets/audio/you-win.wav');
+        this.load.audio('loser', 'assets/audio/you-lose.wav');
         this.load.audio('click', 'assets/audio/button-click.mp3');
     }
 
@@ -390,13 +394,18 @@ class LobbyScene extends Phaser.Scene {
 
         // Create sound instances if not already created
         if (!GAME_STATE.sounds.bgMusic) {
-            GAME_STATE.sounds.bgMusic = this.sound.add('bg-music', { loop: true, volume: 0.4 });
+            GAME_STATE.sounds.bgMusic = this.sound.add('bg-music', { loop: true, volume: 0.15 });
             GAME_STATE.sounds.cardFlip = this.sound.add('card-flip', { volume: 0.6 });
             GAME_STATE.sounds.match = this.sound.add('match', { volume: 0.7 });
             GAME_STATE.sounds.mismatch = this.sound.add('mismatch', { volume: 0.5 });
             GAME_STATE.sounds.winner = this.sound.add('winner', { volume: 0.8 });
             GAME_STATE.sounds.loser = this.sound.add('loser', { volume: 0.7 });
             GAME_STATE.sounds.click = this.sound.add('click', { volume: 0.5 });
+        }
+
+        // Start background music in lobby
+        if (GAME_STATE.sounds.bgMusic && !GAME_STATE.sounds.bgMusic.isPlaying) {
+            GAME_STATE.sounds.bgMusic.play();
         }
 
         // Display lobby background - STRETCH to fill entire screen
@@ -427,7 +436,9 @@ class LobbyScene extends Phaser.Scene {
 
         // Tap to start
         this.input.once('pointerdown', () => {
-            GAME_STATE.sounds.click.play();
+            if (GAME_STATE.sounds.click) {
+                GAME_STATE.sounds.click.play();
+            }
             this.scene.start('PlayScene');
         });
     }
@@ -449,7 +460,7 @@ class PlayScene extends Phaser.Scene {
         const height = this.cameras.main.height;
 
         // Start background music if not already playing
-        if (!GAME_STATE.sounds.bgMusic.isPlaying) {
+        if (GAME_STATE.sounds.bgMusic && !GAME_STATE.sounds.bgMusic.isPlaying) {
             GAME_STATE.sounds.bgMusic.play();
         }
 
@@ -655,7 +666,9 @@ class PlayScene extends Phaser.Scene {
 
     flipCard(card, showFront) {
         // Play card flip sound
-        GAME_STATE.sounds.cardFlip.play();
+        if (GAME_STATE.sounds.cardFlip) {
+            GAME_STATE.sounds.cardFlip.play();
+        }
 
         this.tweens.add({
             targets: card,
@@ -694,7 +707,9 @@ class PlayScene extends Phaser.Scene {
         this.matchedCards.push(card1, card2);
 
         // Play match sound
-        GAME_STATE.sounds.match.play();
+        if (GAME_STATE.sounds.match) {
+            GAME_STATE.sounds.match.play();
+        }
 
         this.showMatchCelebration(card1, card2);
 
@@ -717,7 +732,9 @@ class PlayScene extends Phaser.Scene {
         this.updateTurnCounter();
 
         // Play mismatch sound
-        GAME_STATE.sounds.mismatch.play();
+        if (GAME_STATE.sounds.mismatch) {
+            GAME_STATE.sounds.mismatch.play();
+        }
 
         const maxTurns = GAME_STATE.difficulty === 'easy' ? GAME_CONSTANTS.EASY_MAX_TURNS : GAME_CONSTANTS.HARD_MAX_TURNS;
 
@@ -929,8 +946,12 @@ class WinnerScene extends Phaser.Scene {
         const height = this.cameras.main.height;
 
         // Stop background music and play winner sound
-        GAME_STATE.sounds.bgMusic.stop();
-        GAME_STATE.sounds.winner.play();
+        if (GAME_STATE.sounds.bgMusic) {
+            GAME_STATE.sounds.bgMusic.stop();
+        }
+        if (GAME_STATE.sounds.winner) {
+            GAME_STATE.sounds.winner.play();
+        }
 
         // Display winner background - STRETCH to fill entire screen
         const winner = this.add.image(width / 2, height / 2, 'winner-screen');
@@ -981,19 +1002,19 @@ class WinnerScene extends Phaser.Scene {
         let fortuneX, fortuneY, maxWidth, spanishFontSize, englishFontSize;
         if (GAME_STATE.currentOrientation === 'portrait') {
             // Portrait: centered horizontally, positioned vertically between 60%-80%
-            fortuneX = width * 0.5;
-            fortuneY = height * 0.7; // Center of 60%-80% range
+            fortuneX = width * 0.5 + 50; // Moved right 50px
+            fortuneY = height * 0.7 + 100; // Moved down 100px total
             maxWidth = width * 0.6;  // Use 60% of screen width
-            // Reduce font size by 20% for portrait
-            spanishFontSize = '32px';
-            englishFontSize = '29px';
+            // Smaller font sizes for portrait
+            spanishFontSize = '24px';
+            englishFontSize = '22px';
         } else {
             // Landscape: 55%-85% of screen width (30% total)
-            fortuneX = width * 0.7;  // Center of 55%-85% range
-            fortuneY = height * 0.25;
+            fortuneX = width * 0.7 + 50;  // Moved right 50px
+            fortuneY = height * 0.25 + 100; // Moved down 100px total
             maxWidth = width * 0.3;  // 30% of screen width (85% - 55%)
-            spanishFontSize = '40px';
-            englishFontSize = '36px';
+            spanishFontSize = '30px';
+            englishFontSize = '27px';
         }
 
         // Create container for fortune display
@@ -1007,7 +1028,7 @@ class WinnerScene extends Phaser.Scene {
         ladyImage.setDisplaySize(imageWidth, imageHeight);
         fortuneContainer.add(ladyImage);
 
-        // Spanish text (bold, beige color) with padding from image and edges
+        // Spanish text (bold, orange color) with padding from image and edges
         const textPadding = 40; // Extra padding from card_lady image
         const rightMargin = 30; // Padding from right edge
         const textStartX = -maxWidth / 2 + 160 + textPadding;
@@ -1015,7 +1036,7 @@ class WinnerScene extends Phaser.Scene {
 
         const spanishStyle = {
             fontSize: spanishFontSize,
-            fill: '#F5D599',
+            fill: '#c64207',
             fontFamily: 'Arial',
             fontStyle: 'bold',
             wordWrap: { width: textWidth },
@@ -1025,10 +1046,10 @@ class WinnerScene extends Phaser.Scene {
         spanishText.setOrigin(0, 0);
         fortuneContainer.add(spanishText);
 
-        // English text (bold, beige color) with padding
+        // English text (bold, orange color) with padding
         const englishStyle = {
             fontSize: englishFontSize,
-            fill: '#F5D599',
+            fill: '#c64207',
             fontFamily: 'Arial',
             fontStyle: 'bold',
             wordWrap: { width: textWidth },
@@ -1103,8 +1124,12 @@ class PlayAgainScene extends Phaser.Scene {
         const height = this.cameras.main.height;
 
         // Stop background music and play loser sound
-        GAME_STATE.sounds.bgMusic.stop();
-        GAME_STATE.sounds.loser.play();
+        if (GAME_STATE.sounds.bgMusic) {
+            GAME_STATE.sounds.bgMusic.stop();
+        }
+        if (GAME_STATE.sounds.loser) {
+            GAME_STATE.sounds.loser.play();
+        }
 
         // Display play again background - STRETCH to fill entire screen
         const playAgain = this.add.image(width / 2, height / 2, 'playagain-screen');
@@ -1153,19 +1178,19 @@ class PlayAgainScene extends Phaser.Scene {
         let fortuneX, fortuneY, maxWidth, spanishFontSize, englishFontSize;
         if (GAME_STATE.currentOrientation === 'portrait') {
             // Portrait: centered horizontally, positioned vertically between 60%-80%
-            fortuneX = width * 0.5;
-            fortuneY = height * 0.7; // Center of 60%-80% range
+            fortuneX = width * 0.5 + 50; // Moved right 50px
+            fortuneY = height * 0.7 + 100; // Moved down 100px total
             maxWidth = width * 0.6;  // Use 60% of screen width
-            // Reduce font size by 20% for portrait
-            spanishFontSize = '32px';
-            englishFontSize = '29px';
+            // Smaller font sizes for portrait
+            spanishFontSize = '24px';
+            englishFontSize = '22px';
         } else {
             // Landscape: 55%-85% of screen width (30% total)
-            fortuneX = width * 0.7;  // Center of 55%-85% range
-            fortuneY = height * 0.25;
+            fortuneX = width * 0.7 + 50;  // Moved right 50px
+            fortuneY = height * 0.25 + 100; // Moved down 100px total
             maxWidth = width * 0.3;  // 30% of screen width (85% - 55%)
-            spanishFontSize = '40px';
-            englishFontSize = '36px';
+            spanishFontSize = '30px';
+            englishFontSize = '27px';
         }
 
         // Create container for fortune display
@@ -1179,7 +1204,7 @@ class PlayAgainScene extends Phaser.Scene {
         ladyImage.setDisplaySize(imageWidth, imageHeight);
         fortuneContainer.add(ladyImage);
 
-        // Spanish text (bold, beige color) with padding from image and edges
+        // Spanish text (bold, orange color) with padding from image and edges
         const textPadding = 40; // Extra padding from card_lady image
         const rightMargin = 30; // Padding from right edge
         const textStartX = -maxWidth / 2 + 160 + textPadding;
@@ -1187,7 +1212,7 @@ class PlayAgainScene extends Phaser.Scene {
 
         const spanishStyle = {
             fontSize: spanishFontSize,
-            fill: '#F5D599',
+            fill: '#c64207',
             fontFamily: 'Arial',
             fontStyle: 'bold',
             wordWrap: { width: textWidth },
@@ -1197,10 +1222,10 @@ class PlayAgainScene extends Phaser.Scene {
         spanishText.setOrigin(0, 0);
         fortuneContainer.add(spanishText);
 
-        // English text (bold, beige color) with padding
+        // English text (bold, orange color) with padding
         const englishStyle = {
             fontSize: englishFontSize,
-            fill: '#F5D599',
+            fill: '#c64207',
             fontFamily: 'Arial',
             fontStyle: 'bold',
             wordWrap: { width: textWidth },
